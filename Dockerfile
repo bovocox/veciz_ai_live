@@ -17,12 +17,12 @@ ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 # Backend build
 WORKDIR /app/backend
 RUN npm uninstall @xenova/transformers || true
-RUN npm ci
+RUN npm install
 RUN npx tsc || true
 
 # Frontend build
 WORKDIR /app/frontend
-RUN npm ci
+RUN npm install
 RUN npm run build:no-types || true
 
 # Derlenen dosyaları doğru konumlara kopyala
@@ -34,7 +34,7 @@ RUN cp -r ./frontend/dist/* ./public/ || true
 # Prodüksiyon bağımlılıklarını yükle
 WORKDIR /app
 COPY backend/package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 RUN npm install ts-node typescript @types/node || true
 
 # Nginx yapılandırması
