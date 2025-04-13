@@ -8,14 +8,12 @@ RUN apk add --no-cache python3 wget
 # youtube-dl için Python denetimini atla
 ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 
-# Backend bağımlılıklarını kopyala ve yükle
+# Backend bağımlılıklarını kopyala
 COPY backend/package*.json ./
 
 # Whisper/transformers paketini devre dışı bırak
-# NOT: Eğer ileride Whisper kullanmak isterseniz, aşağıdaki satırı kaldırın
-# ve backend/src/services/whisperService.ts dosyasındaki yorum satırlarını aktif edin.
-# Ayrıca, ilk satırda import { spawn } from 'child_process'; yorumunu kaldırın.
-RUN node -e "const pkg=require('./package.json'); delete pkg.dependencies['@xenova/transformers']; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+# Daha güvenli şekilde package.json manipülasyonu
+RUN cat package.json | grep -v "@xenova/transformers" > tmppackage.json && mv tmppackage.json package.json
 
 # Bağımlılıkları yükle
 RUN npm ci
@@ -60,8 +58,8 @@ COPY --from=backend-build /app/backend/package*.json ./
 COPY --from=frontend-build /app/frontend/dist ./public
 
 # Prodüksiyon bağımlılıkları listesinden transformers paketini kaldır
-# NOT: Eğer ileride Whisper kullanmak isterseniz, aşağıdaki satırı kaldırın
-RUN node -e "const pkg=require('./package.json'); delete pkg.dependencies['@xenova/transformers']; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));"
+# Daha güvenli şekilde package.json manipülasyonu
+RUN cat package.json | grep -v "@xenova/transformers" > tmppackage.json && mv tmppackage.json package.json
 
 # Prodüksiyon bağımlılıklarını yükle
 RUN npm ci --only=production
