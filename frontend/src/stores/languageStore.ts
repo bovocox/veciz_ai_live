@@ -1,63 +1,101 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { useI18n } from 'vue-i18n'
-import trMessages from '../locales/tr.json'
-import enMessages from '../locales/en.json'
+// Vue i18n kullanımını kaldırıyoruz
+// import { useI18n } from 'vue-i18n'
+// import trMessages from '../locales/tr.json'
+// import enMessages from '../locales/en.json'
+import { t as translate, setLocale, getCurrentLocale, getAvailableLocales } from '../utils/translations'
 
-type LocaleMessages = Record<string, any>
+// EventBus için basit bir implementasyon
+const eventBus = {
+  listeners: {} as Record<string, Function[]>,
+  on(event: string, callback: Function) {
+    if (!this.listeners[event]) {
+      this.listeners[event] = [];
+    }
+    this.listeners[event].push(callback);
+  },
+  emit(event: string, data?: any) {
+    if (!this.listeners[event]) return;
+    this.listeners[event].forEach(callback => callback(data));
+  }
+};
 
-type Messages = {
-  [key: string]: LocaleMessages
-}
+// Artık Messages tipini kaldırıyoruz
+// type LocaleMessages = Record<string, any>
+// 
+// interface Messages {
+//   [key: string]: LocaleMessages
+// }
 
 export const useLanguageStore = defineStore('language', () => {
-  const currentLocale = ref('tr')
-  const language = ref('tr')
-  const i18n = useI18n()
+  // Çeviri sisteminden mevcut dili alıyoruz
+  const currentLocale = ref(getCurrentLocale())
+  // Aynı değeri language referansında da tutuyoruz (uyumluluk için)
+  const language = ref(getCurrentLocale())
+  
+  // Vue i18n artık kullanılmıyor
+  // const i18n = useI18n()
 
-  const messages: Messages = {
-    tr: trMessages as LocaleMessages,
-    en: enMessages as LocaleMessages
+  // Çeviri mesajlarını artık doğrudan kullanmıyoruz
+  // const messages: Messages = {
+  //   tr: trMessages as LocaleMessages,
+  //   en: enMessages as LocaleMessages
+  // }
+
+  // Çeviri fonksiyonu artık doğrudan utils/translations'dan gelen t fonksiyonunu kullanıyor
+  function t(key: string, replacements: Record<string, string> = {}) {
+    return translate(key, replacements)
   }
 
-  function t(key: string) {
-    // Öncelikle Vue i18n'i kullanmayı deneyelim
-    const i18nMessage = i18n.t(key)
-    
-    // Eğer Vue i18n bir mesaj döndürmezse (key ile aynıysa), 
-    // kendi implementasyonumuzu kullanalım
-    if (i18nMessage !== key) {
-      return i18nMessage
-    }
-    
-    const keys = key.split('.')
-    let result: any = messages[currentLocale.value]
-    for (const k of keys) {
-      if (result[k] === undefined) {
-        console.warn(`Translation key not found: ${key}`)
-        return key
+  function setLanguage(lang: string, shouldReload: boolean = true) {
+    // Sadece desteklenen diller için işlem yapıyoruz
+    if (lang === 'tr' || lang === 'en') {
+      console.log(`🌐 Dil değiştiriliyor: ${lang}, Yeniden Yükleme: ${shouldReload ? 'Evet' : 'Hayır'}`);
+      
+      // Mevcut dili güncelliyoruz
+      currentLocale.value = lang;
+      language.value = lang;
+      
+      // Çeviri sistemindeki dili değiştiriyoruz
+      setLocale(lang as 'tr' | 'en');
+      
+      // Kullanıcının tercihini local storage'a kaydedelim
+      localStorage.setItem('userLocale', lang);
+      
+      console.log(`✅ Dil değiştirildi: ${lang}, currentLocale: ${currentLocale.value}, Locale in Storage: ${localStorage.getItem('userLocale')}`);
+      
+      // Dil değişikliği olayını yayınla
+      eventBus.emit('language-changed', lang);
+      
+      // Eğer zorunlu bir sayfa yenilemesi isteniyorsa
+      if (shouldReload) {
+        console.log('🔄 Sayfa yenileniyor...');
+        setTimeout(() => {
+          // Sayfayı yenile
+          window.location.reload();
+          console.log(`✅ Dil ayarlandı (sayfa yenilendi): ${currentLocale.value}`);
+        }, 100);
+      } else {
+        // Sayfa yenilemeden çevirileri güncellemeye çalış
+        console.log('📢 Sayfa yenilemeden dil değişikliği uygulandı - Bu bazı sayfalarda çalışmayabilir');
       }
-      result = result[k]
+    } else {
+      console.warn(`⚠️ Desteklenmeyen dil: ${lang}`);
     }
-    return result
   }
 
-  function setLanguage(lang: string) {
-    currentLocale.value = lang
-    language.value = lang
-    
-    // Vue i18n'i de güncelleyelim
-    i18n.locale.value = lang
-    
-    // Kullanıcının tercihini local storage'a kaydedelim
-    localStorage.setItem('userLocale', lang)
+  // Dil değişikliği event listener'ı eklemek için fonksiyon
+  function onLanguageChange(callback: (lang: string) => void) {
+    eventBus.on('language-changed', callback);
   }
 
   return {
     currentLocale,
     language,
-    messages,
+    // messages artık mevcut değil
     t,
-    setLanguage
+    setLanguage,
+    onLanguageChange
   }
 })

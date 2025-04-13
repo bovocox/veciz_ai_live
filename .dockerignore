@@ -1,0 +1,23 @@
+# Node modules ve build dosyaları
+**/node_modules
+**/dist
+**/build
+
+# Whisper model dosyaları
+**/node_modules/@xenova/transformers/.cache
+
+# Loglar ve geçici dosyalar
+**/logs
+**/tmp
+**/.temp
+**/.tmp
+
+# Geliştirme dosyaları
+**/.vscode
+**/.idea
+**/.DS_Store
+**/.git
+**/.gitignore
+
+# Diğer
+**/*.log 

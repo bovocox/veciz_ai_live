@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      # Supabase ortam değişkenleri
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_KEY: ${SUPABASE_ANON_KEY}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY}
+      # Redis ortam değişkenleri
+      UPSTASH_REDIS_URL: ${UPSTASH_REDIS_URL}
+      UPSTASH_REDIS_TOKEN: ${UPSTASH_REDIS_TOKEN}
+      REDIS_MAX_MEMORY: 512mb
+      REDIS_CACHE_TTL: 3600
+      # Diğer yapılandırmalar
+      CACHE_TTL: 3600
+      MAX_VIDEO_DURATION: 10800
+      MAX_CONCURRENT_TASKS: 3
+      LOG_LEVEL: info
+      CORS_ORIGIN: https://vecizai.railway.app
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env.production
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+# Kullanılmayan volume
+# volumes:
+#   redis-data: 

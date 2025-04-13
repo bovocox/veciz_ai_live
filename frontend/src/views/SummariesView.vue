@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useLanguageStore } from '../stores/languageStore'
 import { useAuthStore } from '../stores/auth'
 import { getVideoId } from '../utils/youtube'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { supabase } from '../config/supabase'
 import { FormatService } from '../services/formatService'
 
@@ -23,20 +23,29 @@ interface Summary {
   is_read: boolean;
 }
 
+interface Channel {
+  id: string;
+  title: string;
+  thumbnail_url: string;
+}
+
 type VideoSummary = Summary;
 
 const languageStore = useLanguageStore()
 const authStore = useAuthStore()
 const activeTab = ref('all') // all, today, week, month
 const selectedLanguage = ref('all') // all, tr, en
+const selectedChannel = ref('all') // all, veya kanal ID'si
 const selectedSummary = ref<VideoSummary | null>(null)
 const isMenuOpen = ref(false)
 const error = ref('')
 
 const summaries = ref<Summary[]>([])
+const channels = ref<Channel[]>([])
 const isLoading = ref(false)
 
 const router = useRouter()
+const route = useRoute()
 
 // Computed properties for filtered summaries
 const filteredSummaries = computed(() => {
@@ -76,8 +85,11 @@ const filteredSummaries = computed(() => {
 
       // Then filter by language
       const languageMatches = selectedLanguage.value === 'all' || summary.language === selectedLanguage.value
+      
+      // Then filter by channel
+      const channelMatches = selectedChannel.value === 'all' || summary.channel_id === selectedChannel.value
 
-      return dateMatches && languageMatches
+      return dateMatches && languageMatches && channelMatches
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) // En yeni özetler üstte
 })
@@ -133,6 +145,36 @@ const fetchSummaries = async () => {
   }
 };
 
+// Kanal bilgilerini çekmek için yeni fonksiyon
+const fetchChannels = async () => {
+  try {
+    const token = await supabase.auth.getSession();
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/channels`, {
+      headers: {
+        'Authorization': `Bearer ${token.data.session?.access_token}`
+      }
+    });
+    
+    if (!response.ok) {
+      console.error('Failed to fetch channels');
+      return;
+    }
+
+    const data = await response.json();
+    console.log('Channels API Response:', data);
+
+    channels.value = data.map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      thumbnail_url: item.thumbnail_url
+    }));
+
+    console.log('Mapped channels:', channels.value);
+  } catch (err) {
+    console.error('Error fetching channels:', err);
+  }
+};
+
 // Close menu when clicking outside
 const closeMenu = (e: MouseEvent) => {
   const target = e.target as HTMLElement
@@ -145,9 +187,24 @@ const closeMenu = (e: MouseEvent) => {
 }
 
 onMounted(() => {
-  console.log('Component mounted, loading summaries...')
+  console.log('Component mounted, loading summaries and channels...')
+  console.log('Current language in SummariesView:', languageStore.currentLocale)
+  
   fetchSummaries()
+  fetchChannels()
   document.addEventListener('click', closeMenu)
+  
+  // URL'den channel_id parametresini kontrol et
+  const channelIdFromRoute = route.query.channel_id as string
+  if (channelIdFromRoute) {
+    console.log('Channel ID from route:', channelIdFromRoute)
+    selectedChannel.value = channelIdFromRoute
+  }
+  
+  // Dil değişikliğini dinle
+  languageStore.onLanguageChange((lang) => {
+    console.log('Language changed in SummariesView to:', lang);
+  });
 })
 
 onUnmounted(() => {
@@ -375,6 +432,13 @@ const shareOnLinkedIn = (summary: Summary) => {
   const encodedUrl = encodeURIComponent(summary.video_url);
   window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}&summary=${encodedText}`, '_blank');
 };
+
+// Seçilen kanalın adını göstermek için computed property
+const selectedChannelTitle = computed(() => {
+  if (selectedChannel.value === 'all') return null
+  const channel = channels.value.find(c => c.id === selectedChannel.value)
+  return channel ? channel.title : null
+})
 </script>
 
 <template>
@@ -414,6 +478,21 @@ const shareOnLinkedIn = (summary: Summary) => {
 
         <!-- Filter Tabs -->
         <div class="flex flex-wrap gap-2 sm:gap-4 mb-6">
+          <!-- Selected Channel Title -->
+          <div v-if="selectedChannelTitle" class="w-full mb-2 bg-indigo-50 p-3 rounded-lg border-l-4 border-indigo-500">
+            <div class="flex items-center justify-between">
+              <h3 class="text-indigo-700 font-medium">
+                {{ selectedChannelTitle }}
+              </h3>
+              <button 
+                @click="selectedChannel = 'all'" 
+                class="text-xs font-medium text-indigo-600 hover:text-indigo-800 px-2 py-1 bg-white rounded-md hover:shadow-sm transition-all"
+              >
+                {{ languageStore.t('summaries.channels.all') }}
+              </button>
+            </div>
+          </div>
+          
           <!-- Time Filter Buttons -->
           <div class="flex flex-wrap gap-1.5 sm:gap-2">
             <button
@@ -457,6 +536,20 @@ const shareOnLinkedIn = (summary: Summary) => {
                 {{ languageStore.t(`summaries.languages.${lang}`) }}
               </button>
             </div>
+          </div>
+          
+          <!-- Channel Filter Dropdown -->
+          <div class="flex items-center gap-1.5 sm:gap-2">
+            <span class="text-xs sm:text-sm text-gray-500">{{ languageStore.t('summaries.channels.title') }}:</span>
+            <select 
+              v-model="selectedChannel"
+              class="px-3 py-1.5 bg-gray-50 rounded-lg text-xs sm:text-sm font-medium border border-gray-200 hover:border-indigo-300 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 transition-all duration-300"
+            >
+              <option value="all">{{ languageStore.t('summaries.channels.all') }}</option>
+              <option v-for="channel in channels" :key="channel.id" :value="channel.id">
+                {{ channel.title }}
+              </option>
+            </select>
           </div>
         </div>
 
@@ -534,15 +627,28 @@ const shareOnLinkedIn = (summary: Summary) => {
           </div>
         </div>
         <!-- No Summaries After Filtering -->
-        <div v-else class="text-center py-12">
-          <div class="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full flex items-center justify-center group">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-indigo-500 group-hover:rotate-12 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div v-else-if="hasNoSummaries" class="text-center py-12">
+          <div class="w-20 h-20 mx-auto mb-4 flex items-center justify-center bg-gray-100 rounded-full">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
-          <h3 class="mt-4 text-lg font-medium bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+          <h3 class="text-lg font-medium text-gray-800 mb-2">{{ languageStore.t('summaries.noSummaries') }}</h3>
+          
+          <!-- Show special message when a channel is selected but has no summaries -->
+          <p v-if="selectedChannel !== 'all'" class="text-gray-600 mb-6">
+            {{ languageStore.t('summaries.channels.noSummariesForChannel') }}
+          </p>
+          <p v-else class="text-gray-600 mb-6">
             {{ languageStore.t('summaries.noSummaries') }}
-          </h3>
+          </p>
+          
+          <router-link to="/channels" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ languageStore.t('summaries.channels.addChannel') }}</span>
+          </router-link>
         </div>
       </div>
     </div>
