@@ -140,6 +140,22 @@ fi
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
+ENV BASE_URL=https://veciz-ai-live-production.up.railway.app
+ENV API_URL=https://veciz-ai-live-production.up.railway.app/api
+ENV CORS_ORIGIN=*
+ENV LOG_LEVEL=info
+ENV DATABASE_URL=${DATABASE_URL}
+ENV JWT_SECRET=${JWT_SECRET}
+ENV JWT_EXPIRATION=24h
+ENV CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+ENV CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+ENV CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+ENV OPENAI_API_KEY=${OPENAI_API_KEY}
+ENV SMTP_HOST=${SMTP_HOST}
+ENV SMTP_PORT=${SMTP_PORT}
+ENV SMTP_USER=${SMTP_USER}
+ENV SMTP_PASS=${SMTP_PASS}
+ENV EMAIL_FROM=${EMAIL_FROM}
 
 # Portlar
 EXPOSE 3000 80
@@ -149,4 +165,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
 
 # Çalıştırma komutu
-CMD sh -c "nginx && cd /app && node dist/index.js" 
+CMD ["/bin/sh", "./start.sh"] 
