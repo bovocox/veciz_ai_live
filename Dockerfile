@@ -8,11 +8,11 @@ RUN apk add --no-cache python3 wget
 # youtube-dl için Python denetimini atla
 ENV YOUTUBE_DL_SKIP_PYTHON_CHECK=1
 
-# Backend bağımlılıklarını kopyala (önce bu adımı yapalım)
+# Backend bağımlılıklarını kopyala
 COPY backend/package*.json ./
 
-# package.json'ı manipüle et
-RUN grep -v "@xenova/transformers" package.json > package.json.tmp && mv package.json.tmp package.json
+# Transformers paketini doğrudan npm'den kaldıralım (safer approach)
+RUN npm uninstall @xenova/transformers || true
 
 # Bağımlılıkları yükle
 RUN npm ci
@@ -28,7 +28,7 @@ FROM node:18-alpine as frontend-build
 
 WORKDIR /app/frontend
 
-# Frontend bağımlılıklarını kopyala ve yükle (önce bu adımı yapalım)
+# Frontend bağımlılıklarını kopyala ve yükle
 COPY frontend/package*.json ./
 RUN npm ci
 
@@ -56,9 +56,8 @@ COPY --from=backend-build /app/backend/package*.json ./
 # Frontend build sonuçlarını kopyala
 COPY --from=frontend-build /app/frontend/dist ./public
 
-# Prodüksiyon bağımlılıkları listesinden transformers paketini kaldır
-# Daha güvenli bir şekilde package.json manipülasyonu (önce dosyanın var olduğundan emin olalım)
-RUN grep -v "@xenova/transformers" package.json > package.json.tmp && mv package.json.tmp package.json
+# Prodüksiyon modunda transformers paketini doğrudan kaldıralım
+RUN npm uninstall @xenova/transformers || true
 
 # Prodüksiyon bağımlılıklarını yükle
 RUN npm ci --only=production
