@@ -17,9 +17,11 @@ RUN npm uninstall @xenova/transformers || true
 # Bağımlılıkları yükle
 RUN npm ci
 
-# Backend kaynak kodlarını kopyala (package.json hariç diğer dosyaları)
-COPY backend/src ./src
+# tsconfig.json dosyasını kopyala
 COPY backend/tsconfig.json ./
+
+# Backend kaynak kodlarını kopyala (src dizinini)
+COPY backend/src ./src
 
 # TypeScript'i derle
 RUN npm run build
