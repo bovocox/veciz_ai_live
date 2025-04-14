@@ -12,6 +12,13 @@ if [ -n "$RAILWAY_ENVIRONMENT" ]; then
   # Use Railway environment variables if available
   export PORT=${PORT:-3000}
   export HOST=${HOST:-0.0.0.0}
+  
+  # Update API URLs based on Railway domain
+  if [ -n "$RAILWAY_STATIC_URL" ]; then
+    export BASE_URL=$RAILWAY_STATIC_URL
+    export API_URL=$RAILWAY_STATIC_URL/api
+    echo "Using Railway URLs: BASE_URL=$BASE_URL, API_URL=$API_URL"
+  fi
 else
   # Default values for local development
   export PORT=3000

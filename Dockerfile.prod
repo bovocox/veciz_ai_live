@@ -1,0 +1,82 @@
+FROM node:18-alpine
+
+# Gerekli araçları yükle
+RUN apk add --no-cache python3 wget nginx
+
+# Çalışma dizini oluştur
+WORKDIR /app
+
+# Gerekli dizinleri oluştur
+RUN mkdir -p /app/dist /app/public /app/src /run/nginx
+
+# Backend işlemleri
+WORKDIR /app
+COPY backend/package.json ./
+RUN npm install --production
+
+# Backend kaynak dosyalarını kopyala
+COPY backend/dist/* /app/dist/
+COPY backend/src/* /app/src/
+
+# Server dosyası
+COPY server/index.js /app/dist/index.js
+
+# Frontend build dosyalarını kopyala
+COPY frontend/dist/* /app/public/
+
+# Nginx yapılandırması - dinamik API URL kullanarak
+RUN echo 'server { \
+    listen 80; \
+    server_name _; \
+    root /app/public; \
+    index index.html; \
+    \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+    \
+    location /api { \
+        proxy_pass http://localhost:3000; \
+        proxy_http_version 1.1; \
+        proxy_set_header Upgrade $http_upgrade; \
+        proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Real-IP $remote_addr; \
+    } \
+    \
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js)$ { \
+        expires 1d; \
+    } \
+}' > /etc/nginx/http.d/default.conf
+
+# Başlatma betiği
+RUN echo '#!/bin/sh\n\
+# Railway ortam değişkenlerini kontrol et\n\
+if [ -n "$RAILWAY_STATIC_URL" ]; then\n\
+  export BASE_URL=$RAILWAY_STATIC_URL\n\
+  export API_URL=$RAILWAY_STATIC_URL/api\n\
+  echo "Running with Railway URLs: BASE_URL=$BASE_URL, API_URL=$API_URL"\n\
+fi\n\
+# Nginx başlat\n\
+nginx -g "daemon off;" &\n\
+# Backend başlat\n\
+cd /app && node dist/index.js\n' > /app/start.sh
+
+RUN chmod +x /app/start.sh
+
+# Ortam değişkenlerini ayarla - Railway tarafından override edilecek
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV BASE_URL=${RAILWAY_STATIC_URL}
+ENV API_URL=${RAILWAY_STATIC_URL}/api
+ENV CORS_ORIGIN=*
+
+# Portları aç
+EXPOSE 3000 80
+
+# Sağlık kontrolü
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+# Uygulamayı başlat
+CMD ["/bin/sh", "/app/start.sh"] 
